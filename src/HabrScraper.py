@@ -330,23 +330,43 @@ class HabrScraper:
         for index, row in posts_df.iterrows(): 
             doc_dic = {}
             soup = BeautifulSoup(row['html'], 'html5lib')
-            if soup.find("h1", {"tm-article-snippet__title tm-article-snippet__title_h1"}):
-                title = soup.find("h1", {"tm-article-snippet__title tm-article-snippet__title_h1"}).text
+            title = soup.find("h1", {"tm-article-snippet__title tm-article-snippet__title_h1"})
+            if title:   
+# Получаем идентификатор
                 doc_dic['id'] = row['id']
+
+# Получаем заголовок
+                title = title.text
                 doc_dic['title'] = title
-                text = soup.find("div", {"id": "post-content-body"}).text
-                doc_dic['text'] = text        
+
+# Получаем текст 
+                text = soup.find("div", {"id": "post-content-body"})
+                if text:
+                    text = soup.find("div", {"id": "post-content-body"}).text
+                else: 
+                    text = ''
+                doc_dic['text'] = text
+                
+# Получаем дату-время                
                 doc_dic['date_time'] = self.date_text(soup.find("span", {"class": "tm-article-snippet__datetime-published"}).text)
                 tags = soup.find_all("span", {"class": "tm-article-body__tags-item"}) 
+        
+# Получаем теги
                 if tags: 
                     tags = [i.text.lower().strip() for i in tags]
                 else: 
-                    tags = None
+                    tags = ''
                 doc_dic['tags'] = str(tags)
                 full_text = title + ' ' + text + ' ' + ' ' + ' '.join(tags) 
                 doc_dic['lem_text'] = self.lem_text(self.clean_text(full_text))
+                
+# Получаем лемматизированный текст
                 doc_dic['user_id'] = soup.find("span", {"class": "tm-user-info__user"}).text.strip()
-                doc_dic['is_like'] = False    
+    
+# Получаем признак понравившейся статьи   
+                doc_dic['is_like'] = False   
+    
+# Получаем дату загрузки
                 doc_dic['date_load'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
                 metadata = MetaData(schema = schema)
@@ -410,3 +430,23 @@ class HabrScraper:
             difference = max_html - max_habr_posts
         
         return [max_html, max_habr_posts, difference]
+    
+    def all_new(self): 
+        """
+        Получение нового html и его разбор. 
+        Вход: 
+            нет.
+        Выход: 
+            нет. 
+        """
+# Если разница между html и разобранным кодом составляет более 99, то прерываем процесс   
+        while True: 
+            max_id = self.max_id()
+            if max_id[2] < 100: 
+                max_id_start = max_id[0] + 1 
+                max_id_stop = max_id_start + 99
+                self.mass_html_write_habr(max_id_start, max_id_stop)
+                self.write_new_data()
+                print(max_id_start, max_id_stop)
+            else: 
+                break
