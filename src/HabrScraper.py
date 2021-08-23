@@ -23,8 +23,6 @@ import re
 from sqlalchemy import create_engine, Table, MetaData
 from sqlalchemy.inspection import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-# Для работы с Postgre
-import psycopg2
 
 # Для работы с tor
 import stem
@@ -62,7 +60,12 @@ class HabrScraper:
                  ,pg_login
                  ,host
                  ,password_tor
-                 ,url = 'https://habr.com/ru/post/'
+                 ,yandex_mail 
+                 ,habr_password
+                 ,url = {
+                     'main' : 'https://habr.com/ru/post/'
+                     ,'login' : 'https://account.habr.com/login'
+                 }
                 ):
         """
         Функция для инциализации объекта класса.
@@ -71,14 +74,17 @@ class HabrScraper:
             pg_login(str) - логин для postgre.
             host(str) - ip адрес.
             password_tor(str) - пароль для TOR.
-            url(str) - url. 
+            yandex_mail(str) - ящик на yandex как логин в Habr.
+            habr_password(str) - пароль для Habr.
+            url(dict) - url. 
         Выход: 
             нет.
         """
         self.host = host
         self.engine = create_engine(f'postgres://{pg_login}:{pg_password}@{self.host}:5432/{pg_login}')
         self.password_tor = password_tor
-        self.conn = psycopg2.connect(f"host={self.host} dbname={pg_login} user={pg_login} password={pg_password}")
+        self.yandex_mail = yandex_mail
+        self.habr_password = habr_password
         self.url = url
         self.dic_month = {'января' : '01', 'февраля' : '02', 'марта' : '03', 'апреля' : '04', 'мая' : '05', 'июня' : '06', 'июля' : '07','августа' : '08',
                           'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'}
@@ -118,7 +124,7 @@ class HabrScraper:
                 continue            
         return (BeautifulSoup(r.text, 'html5lib'), r)
     
-    def html_write_habr(self, pid, schema = 'article', table_name = 'html'): 
+    def html_write_habr(self, pid, schema = 'article', table_name = 'habr_html'): 
         """
         Функция для получения и записи html. 
         Вход: 
@@ -129,7 +135,7 @@ class HabrScraper:
             result(bool) - булево значение для ненайденных старниц.
         """
         while True:
-            url = self.url + str(pid)
+            url = self.url['main'] + str(pid)
             try:                 
 # Получаем html
                 html, r = self.data_page(url) 
@@ -174,7 +180,7 @@ class HabrScraper:
             result = False
         return result
     
-    def mass_html_write_habr(self, start, stop): 
+    def mass_write_habr(self, start, stop): 
         """
         Массовое получение статей с сайта habr. 
         Вход: 
@@ -185,6 +191,7 @@ class HabrScraper:
         """
         with ThreadPool(10) as p:
             p.map(self.html_write_habr, range(start, stop))  
+        self.write_new_data()
     
     def pg_descriptions(self, schema = "article"): 
         """
@@ -288,24 +295,26 @@ class HabrScraper:
         finish_text = ' '.join(word_lem)
         return finish_text
     
-    def new_data(self):
+    def new_data(self, start, stop):
         """
         Новые данные для обработки.
         Вход:
-            нет.
+            start - стартового индекс.
+            stop - конечный индекс.
         Выход:
             posts_df(DataFrame) - таблица с необработанными данными.
         """
-        query = """
+        query = f"""
         select 
                 html.link 
                 ,html.html 
                 ,html.id
         from 
-                article.html as html
+                article.habr_html as html
         left join article.habr_posts as posts on html.id = posts.id 
         where 
                 posts.id is null
+            and html.id  between {start} and {stop}
         """
 
         posts_df = pd.read_sql(
@@ -406,7 +415,7 @@ class HabrScraper:
         """
         
         query1 = """
-        select max(id) from article.html
+        select max(id) from article.habr_html
         """
         max_html = pd.read_sql(
             query1
@@ -445,8 +454,39 @@ class HabrScraper:
             if max_id[2] < 100: 
                 max_id_start = max_id[0] + 1 
                 max_id_stop = max_id_start + 99
-                self.mass_html_write_habr(max_id_start, max_id_stop)
-                self.write_new_data()
+                self.mass_write_habr(max_id_start, max_id_stop)                
                 print(max_id_start, max_id_stop)
             else: 
                 break
+                
+    def bookmarks(self): 
+        """
+        Получение id статей, которые я положил в закладки. 
+        Вход: 
+            нет. 
+        Выход: 
+            id_list(list) - лист id.
+        """
+
+# Зарегестрируемся
+        url = 'https://account.habr.com/login'
+        data = {'email_field': self.yandex_mail, 'password_field': self.habr_password}
+        requests.post(self.url['login'], data = data)
+
+# Получим ссылки
+        id_list = []
+        page = 0
+# Пишем цикл, если несколько страниц
+        while True:
+            page += 1
+            r = requests.get(f'https://habr.com/ru/users/Volokzhanin/favorites/posts/page{page}/')
+            soup = BeautifulSoup(r.text, 'html5lib')
+            bookmark_links = soup.find_all("a", {"class": "tm-article-snippet__title-link"})
+            if len(bookmark_links) > 0:
+                for id_post in bookmark_links:
+                    current_link = re.search(r'/\d{1,}/', str(id_post)).group(0)
+                    current_link = re.sub(r'\D', '', current_link)
+                    id_list.append(int(current_link))
+            else:
+                break
+        return id_list
