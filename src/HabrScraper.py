@@ -232,12 +232,20 @@ class HabrScraper:
             (MetaData) - описание таблиц в pg.
         """
         
-# Получаем объект схемы pg
-        metadata = self.metadata_db()
-    
-# Смотрим описание метаданных
-        for i in metadata.tables.items(): 
-            print(i)
+# Получаем объект pg
+        inspector = inspect(self.engine)
+        schemas = inspector.get_schema_names()
+        
+# Получаем описание объектов pg 
+        for schema in schemas:            
+            if schema == self.schema: 
+                for table_name in inspector.get_table_names(schema = schema):
+                    for column in inspector.get_columns(table_name, schema=schema):
+                        print(
+                            f'Схема: {schema}'
+                            ,f'Таблица: {table_name}'
+                            ,f"Колонка: {column}"
+                        )       
 
     def date_text(self, raw_date):
         """
