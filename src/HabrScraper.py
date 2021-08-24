@@ -20,9 +20,10 @@ import pandas as pd
 import re
 
 # Для работы с SQL
-from sqlalchemy import create_engine, Table, MetaData
+from sqlalchemy import create_engine, Table, MetaData, update
 from sqlalchemy.inspection import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import sessionmaker
 
 # Для работы с tor
 import stem
@@ -66,6 +67,8 @@ class HabrScraper:
                      'main' : 'https://habr.com/ru/post/'
                      ,'login' : 'https://account.habr.com/login'
                  }
+                 ,schema = 'article'
+                 ,table_list = ['habr_posts', 'habr_html']
                 ):
         """
         Функция для инциализации объекта класса.
@@ -76,7 +79,9 @@ class HabrScraper:
             password_tor(str) - пароль для TOR.
             yandex_mail(str) - ящик на yandex как логин в Habr.
             habr_password(str) - пароль для Habr.
-            url(dict) - url. 
+            url(dict) - url.  
+            schema() - схема pg.
+            table_list(list) - список таблиц в pg.
         Выход: 
             нет.
         """
@@ -88,6 +93,31 @@ class HabrScraper:
         self.url = url
         self.dic_month = {'января' : '01', 'февраля' : '02', 'марта' : '03', 'апреля' : '04', 'мая' : '05', 'июня' : '06', 'июля' : '07','августа' : '08',
                           'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'}
+        self.schema = schema
+        self.table_list = table_list
+        
+    
+    def metadata_db(self): 
+        """
+        Создаем схему данных.
+        Вход: 
+            нет.
+        Выход: 
+            (MetaData) - объект схемы pg.
+        """
+        
+# Создаем объект схемы 
+        metadata = MetaData(schema = self.schema)
+        metadata.bind = self.engine
+# Добавляем к схеме таблицы 
+        for table in self.table_list: 
+            Table(
+                table
+                ,metadata
+                ,schema = self.schema
+                ,autoload = True
+            )
+        return metadata
 
     def change_ip(self): 
         """
@@ -193,49 +223,21 @@ class HabrScraper:
             p.map(self.html_write_habr, range(start, stop))  
         self.write_new_data(start, stop)
     
-    def pg_descriptions(self, schema = "article"): 
+    def pg_descriptions(self): 
         """
-        Функция для возвращения таблицы с описанием таблиц в pg. 
+        Функция для возвращения описания таблиц в pg. 
         Вход: 
-            schema(str) - наименование схемы.
+            нет.
         Выход: 
-            desription_df(DataFrame) - таблица с описанием таблиц pg.
+            (MetaData) - описание таблиц в pg.
         """
-            
-        query_table_description = f"""
-        with 
-             tables as (
-             select distinct
-                    table_name
-                    ,table_schema
-            from 
-                    information_schema.columns 
-            where 
-        -- Отбираем схему
-                    table_schema in ('{schema}')
-             )
-        select 
-                nspname as scheme_name, 
-                obj_description(n.oid) as scheme_description,
-                relname as table_name, 
-                attname as column_name, 
-                format_type(atttypid, atttypmod), 
-                obj_description(c.oid) as table_description, 
-                col_description(c.oid, a.attnum) as column_description 
-        from 
-                pg_class as c 
-        join pg_attribute as a on (a.attrelid = c.oid) 
-        join pg_namespace as n on (n.oid = c.relnamespace)
-        join tables on tables.table_name = c.relname and tables.table_schema = n.nspname
-        where
-                format_type(atttypid, atttypmod) not in ('oid', 'cid', 'xid', 'tid', '-')
-        """
-
-        desription_df = pd.read_sql(
-            query_table_description 
-            ,con = self.engine
-        )
-        return desription_df
+        
+# Получаем объект схемы pg
+        metadata = self.metadata_db()
+    
+# Смотрим описание метаданных
+        for i in metadata.tables.items(): 
+            print(i)
 
     def date_text(self, raw_date):
         """
@@ -492,3 +494,25 @@ class HabrScraper:
             else:
                 break
         return id_list
+    
+    def mark_bookmarks(self, table_name = 'article.habr_posts'): 
+        """
+        Отметка закладок. 
+        Вход: 
+            table_name(str) - название таблицы для отметки.
+        Выход: 
+            нет.
+        """
+        
+# Получаем ссылки на id статей в моих закладках
+        id_list = self.bookmarks()
+
+# Получаем объект схемы pg
+        metadata = self.metadata_db()
+
+# Обвновляем запись
+        table = metadata.tables[table_name]
+        for post_id in tqdm_notebook(id_list): 
+            stmt = table.update().where(table.c.id == post_id and table.c.is_like == False).values(is_like = True)
+            with self.engine.connect() as conn:    
+                conn.execute(stmt)
