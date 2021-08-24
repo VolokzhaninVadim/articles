@@ -188,10 +188,10 @@ class HabrScraper:
             stop - конечный индекс.
         Выход: 
             нет.
-        """
+        """       
         with ThreadPool(10) as p:
             p.map(self.html_write_habr, range(start, stop))  
-        self.write_new_data()
+        self.write_new_data(start, stop)
     
     def pg_descriptions(self, schema = "article"): 
         """
@@ -323,17 +323,19 @@ class HabrScraper:
         )
         return posts_df
     
-    def write_new_data(self, schema = 'article', table_name = 'habr_posts'): 
+    def write_new_data(self, start, stop, schema = 'article', table_name = 'habr_posts'): 
         """
         Запись новых данных в pg.
         Вход: 
+            start - стартового индекс.
+            stop - конечный индекс.
             schema(str) - название схемы.
             table_name(str) - название таблицы.
         Выход: 
             нет.
         """
 # Получаем новые данные 
-        posts_df = self.new_data()
+        posts_df = self.new_data(start, stop)
 
 # Разбираем и записываем новые данные 
         for index, row in posts_df.iterrows(): 
