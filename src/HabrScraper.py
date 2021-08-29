@@ -46,10 +46,6 @@ morph = pm.MorphAnalyzer()
 # Для параллельной работы кода
 from multiprocessing.dummy import Pool as ThreadPool
 
-# Для мониторинга выполнения циклов
-from tqdm import tqdm
-from tqdm.notebook import tqdm as tqdm_notebook 
-
 ###############################################################################################################################################
 ############################################## Создаем объект класса ##########################################################################
 ###############################################################################################################################################
@@ -520,7 +516,7 @@ class HabrScraper:
 
 # Обвновляем запись
         table = metadata.tables[table_name]
-        for post_id in tqdm_notebook(id_list): 
+        for post_id in id_list: 
             stmt = table.update().where(table.c.id == post_id and table.c.is_like == False).values(is_like = True)
             with self.engine.connect() as conn:    
                 conn.execute(stmt)
