@@ -83,37 +83,23 @@ class HabrScraper:
         """
         self.host = host
         self.engine = create_engine(f'postgres://{pg_login}:{pg_password}@{self.host}:5432/{pg_login}')
+        self.inspector = inspect(self.engine)
+        self.metadata = MetaData(schema = self.inspector.get_schema_names(), bind = self.engine)  
+        self.table_list = table_list 
+        self.schema = schema
+        for table in self.table_list: 
+            Table(
+                table
+                ,self.metadata
+                ,schema = self.schema
+                ,autoload = True
+            )
         self.password_tor = password_tor
         self.yandex_mail = yandex_mail
         self.habr_password = habr_password
         self.url = url
         self.dic_month = {'января' : '01', 'февраля' : '02', 'марта' : '03', 'апреля' : '04', 'мая' : '05', 'июня' : '06', 'июля' : '07','августа' : '08',
-                          'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'}
-        self.schema = schema
-        self.table_list = table_list
-        
-    
-    def metadata_db(self): 
-        """
-        Создаем схему данных.
-        Вход: 
-            нет.
-        Выход: 
-            (MetaData) - объект схемы pg.
-        """
-        
-# Создаем объект схемы 
-        metadata = MetaData(schema = self.schema)
-        metadata.bind = self.engine
-# Добавляем к схеме таблицы 
-        for table in self.table_list: 
-            Table(
-                table
-                ,metadata
-                ,schema = self.schema
-                ,autoload = True
-            )
-        return metadata
+                          'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'}                     
 
     def change_ip(self): 
         """
@@ -168,11 +154,9 @@ class HabrScraper:
                 break
             except (ConnectTimeout, ConnectionError, ReadTimeout, ProxyError) as e: 
                 continue 
-        metadata = MetaData(schema = schema)
-        metadata.bind = self.engine
         table = Table(
             table_name
-            ,metadata
+            ,self.metadata
             ,schema = schema
             ,autoload = True
         )
@@ -386,11 +370,9 @@ class HabrScraper:
 # Получаем дату загрузки
                 doc_dic['date_load'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                metadata = MetaData(schema = schema)
-                metadata.bind = self.engine
                 table = Table(
                     table_name
-                    ,metadata
+                    ,self.metadata
                     ,schema = schema
                     ,autoload = True
                 )
@@ -511,11 +493,8 @@ class HabrScraper:
 # Получаем ссылки на id статей в моих закладках
         id_list = self.bookmarks()
 
-# Получаем объект схемы pg
-        metadata = self.metadata_db()
-
 # Обвновляем запись
-        table = metadata.tables[table_name]
+        table = self.metadata.tables[table_name]
         for post_id in id_list: 
             stmt = table.update().where(table.c.id == post_id and table.c.is_like == False).values(is_like = True)
             with self.engine.connect() as conn:    
