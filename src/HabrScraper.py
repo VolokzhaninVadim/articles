@@ -20,10 +20,11 @@ import pandas as pd
 import re
 
 # Для работы с SQL
-from sqlalchemy import create_engine, Table, MetaData, update
+from sqlalchemy import create_engine, Table, MetaData, update, select, or_, and_
 from sqlalchemy.inspection import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import sessionmaker
+from  sqlalchemy.sql.expression import func
 
 # Для работы с tor
 import stem
@@ -190,18 +191,27 @@ class HabrScraper:
             result = False
         return result
     
-    def mass_write_habr(self, start, stop): 
+    def mass_write_habr(self, start = None, stop = None): 
         """
         Массовое получение статей с сайта habr. 
         Вход: 
-            start - стартового индекс.
-            stop - конечный индекс.
+            start(int) - стартового индекс.
+            stop(int) - конечный индекс.
+            update_list_id(list) - список id. 
         Выход: 
             нет.
-        """       
-        with ThreadPool(10) as p:
-            p.map(self.html_write_habr, range(start, stop))  
-        self.write_new_data(start, stop)
+        """
+# Есди нет start и stop, то делаем update, иначе используем start и stop
+        if start and stop:            
+            with ThreadPool(10) as p:
+                p.map(self.html_write_habr, range(start, stop)) 
+            self.write_new_data(start, stop)
+        else: 
+            df = self.new_data()
+            list_id = [int(i) for i in df['id'].values]
+            with ThreadPool(10) as p:
+                p.map(self.html_write_habr, list_id)  
+            self.write_new_data()
     
     def pg_descriptions(self): 
         """
@@ -285,35 +295,56 @@ class HabrScraper:
         finish_text = ' '.join(word_lem)
         return finish_text
     
-    def new_data(self, start, stop):
+    def new_data(self, start = None, stop = None):
         """
         Новые данные для обработки.
         Вход:
             start - стартового индекс.
             stop - конечный индекс.
         Выход:
-            posts_df(DataFrame) - таблица с необработанными данными.
+            rersult_df(DataFrame) - таблица с необработанными данными.
         """
-        query = f"""
-        select 
-                html.link 
-                ,html.html 
-                ,html.id
-        from 
-                article.habr_html as html
-        left join article.habr_posts as posts on html.id = posts.id 
-        where 
-                posts.id is null
-            and html.id  between {start} and {stop}
-        """
+# Получаем таблицы для объединения 
+        inspector = inspect(self.metadata)
+        habr_posts_table = inspector.tables['article.habr_posts']
+        habr_html_table = inspector.tables['article.habr_html']
 
-        posts_df = pd.read_sql(
-            query
-            ,con = self.engine
+# Объединяем таблицы 
+        join_tables = habr_html_table.join(
+            habr_posts_table
+            ,habr_html_table.c.id == habr_posts_table.c.id
+            ,isouter = True
         )
-        return posts_df
+
+# Получаем ссылки на неразобранные страницы
+        if start and stop: 
+            stmt = select([join_tables.c.article_habr_html_id, join_tables.c.article_habr_html_link, join_tables.c.article_habr_html_html]).\
+            select_from(join_tables).\
+            where(and_(join_tables.c.article_habr_html_id.between(start, stop), join_tables.c.article_habr_posts_title == None))
+
+# Выполняем запрос 
+            with self.engine.connect() as conn:   
+                id_list = conn.execute(stmt)
+
+# Получаем id статей 
+            rersult_list = id_list.fetchall()
+            rersult_df = pd.DataFrame([dict(row) for row in rersult_list])
+        else: 
+            stmt = select([join_tables.c.article_habr_html_id, join_tables.c.article_habr_html_link, join_tables.c.article_habr_html_html]).\
+            select_from(join_tables).where(join_tables.c.article_habr_posts_title == None).\
+            order_by(func.random()).\
+            limit(5000)
+
+# Выполняем запрос 
+            with self.engine.connect() as conn:   
+                id_list = conn.execute(stmt)
+
+# Получаем id статей 
+            rersult_list = id_list.fetchall()
+            rersult_df = pd.DataFrame([dict(row) for row in rersult_list])
+        return rersult_df
     
-    def write_new_data(self, start, stop, schema = 'article', table_name = 'habr_posts'): 
+    def write_new_data(self, start = None, stop = None, schema = 'article', table_name = 'habr_posts'): 
         """
         Запись новых данных в pg.
         Вход: 

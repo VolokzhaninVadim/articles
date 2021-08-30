@@ -70,13 +70,27 @@ with DAG(
     description = "Получение статей"
     ,default_args = default_args
     ,catchup = False
-    ,schedule_interval = "@once"
+    ,schedule_interval = "@hourly"
     ,tags=['article_loader']) as dag:
 
 # Получаем статьи с Habr
     all_new_habr = PythonOperator(
         task_id = "habr_loader", 
         python_callable = article_scraper().all_new, 
+        dag = dag
+        )
+ 
+ # Обновляем html   
+    update_habr_html = PythonOperator(
+        task_id = "update_habr_html", 
+        python_callable = article_scraper().mass_write_habr, 
+        dag = dag
+        )
+ 
+ # Обновляем разобранный код
+    update_habr = PythonOperator(
+        task_id = "update_habr", 
+        python_callable = article_scraper().write_new_data, 
         dag = dag
         )
     
@@ -88,4 +102,4 @@ with DAG(
         ) 
 
 # Порядок выполнения задач
-    all_new_habr >> habr_bookmarks   
+    all_new_habr >> update_habr_html >> update_habr >> habr_bookmarks   
