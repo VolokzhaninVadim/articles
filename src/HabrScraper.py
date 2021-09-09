@@ -24,7 +24,7 @@ from sqlalchemy import create_engine, Table, MetaData, update, select, or_, and_
 from sqlalchemy.inspection import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import sessionmaker
-from  sqlalchemy.sql.expression import func
+from sqlalchemy.sql.expression import func
 
 # Для работы с tor
 import stem
@@ -255,7 +255,7 @@ class HabrScraper:
             date = (datetime.datetime.now() - datetime.timedelta(days = 1)).strftime("%Y-%m-%d") + ' ' + time
         # Иначе
         else:
-            year = re.search(r'\d{4}', raw_date).group(0)
+            year = re.search(r'\d{4}', raw_date).group(0) if re.findall(r'\d{4}', raw_date) else str(datetime.datetime.now().year)
             day = re.search(r'^\d{1,2}', raw_date).group(0)
             month = re.search(r'\s\w.+?\s', raw_date).group(0).strip()
             time = re.search(r'\d{2}:\d{2}', raw_date).group(0).strip()
@@ -333,7 +333,7 @@ class HabrScraper:
             stmt = select([join_tables.c.article_habr_html_id, join_tables.c.article_habr_html_link, join_tables.c.article_habr_html_html]).\
             select_from(join_tables).where(join_tables.c.article_habr_posts_title == None).\
             order_by(func.random()).\
-            limit(5000)
+            limit(500)
 
 # Выполняем запрос 
             with self.engine.connect() as conn:   
@@ -388,12 +388,13 @@ class HabrScraper:
                     tags = [i.text.lower().strip() for i in tags]
                 else: 
                     tags = ''
+                user_id = soup.find("span", {"class": "tm-user-info__user"}).text.strip()
                 doc_dic['tags'] = str(tags)
-                full_text = title + ' ' + text + ' ' + ' ' + ' '.join(tags) 
+                full_text = title + ' ' + text + ' ' + ' '.join(tags) + ' ' + user_id
                 doc_dic['lem_text'] = self.lem_text(self.clean_text(full_text))
                 
 # Получаем лемматизированный текст
-                doc_dic['user_id'] = soup.find("span", {"class": "tm-user-info__user"}).text.strip()
+                doc_dic['user_id'] = user_id
     
 # Получаем признак понравившейся статьи   
                 doc_dic['is_like'] = False   
