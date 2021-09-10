@@ -47,12 +47,17 @@ morph = pm.MorphAnalyzer()
 # Для параллельной работы кода
 from multiprocessing.dummy import Pool as ThreadPool
 
+# Для работы с БД
+from src.DBResources import DBResources
+
+# Для работы с параметрами
+from src.Params import Params
+
 ###############################################################################################################################################
 ############################################## Создаем объект класса ##########################################################################
 ###############################################################################################################################################
 
-class HabrScraper:
-    
+class HabrScraper:    
     def __init__(self 
                  ,pg_password
                  ,pg_login
@@ -211,31 +216,7 @@ class HabrScraper:
             list_id = [int(i) for i in df['id'].values]
             with ThreadPool(10) as p:
                 p.map(self.html_write_habr, list_id)  
-            self.write_new_data()
-    
-    def pg_descriptions(self): 
-        """
-        Функция для возвращения описания таблиц в pg. 
-        Вход: 
-            нет.
-        Выход: 
-            (MetaData) - описание таблиц в pg.
-        """
-        
-# Получаем объект pg
-        inspector = inspect(self.engine)
-        schemas = inspector.get_schema_names()
-        
-# Получаем описание объектов pg 
-        for schema in schemas:            
-            if schema == self.schema: 
-                for table_name in inspector.get_table_names(schema = schema):
-                    for column in inspector.get_columns(table_name, schema=schema):
-                        print(
-                            f'Схема: {schema}'
-                            ,f'Таблица: {table_name}'
-                            ,f"Колонка: {column}"
-                        )       
+            self.write_new_data()     
 
     def date_text(self, raw_date):
         """
