@@ -18,6 +18,10 @@ class Params:
         self.password_tor = os.environ['PASSWORD_TOR']
         self.yandex_mail = os.environ['YANDEX_MAIL']
         self.habr_password = os.environ['HABR_PASSWORD']
+        self.url = {
+            'main' : 'https://habr.com/ru/post/'
+            ,'login' : 'https://account.habr.com/login'
+        }        
         
     def to_dict(self):
         return self.__dict__
