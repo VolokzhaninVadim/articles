@@ -31,8 +31,14 @@ class DBResources:
         self.engine = create_engine(f'postgres://{self.params.pg_login}:{self.params.pg_password}@{self.params.pg_host}:5432/{self.params.pg_login}')
         self.inspector = inspect(self.engine)
         self.metadata = MetaData(schema = self.inspector.get_schema_names(), bind = self.engine)
-        self.schema = 'article'
-        self.table_list = ['habr_posts', 'habr_html']   
+# Добавляем таблицы в схему для работы
+        for table in self.params.table_list: 
+            Table(
+                table
+                ,self.metadata
+                ,schema = self.params.schema
+                ,autoload = True
+            ) 
             
     def pg_descriptions(self): 
         """
@@ -49,7 +55,7 @@ class DBResources:
         
 # Получаем описание объектов pg 
         for schema in schemas:            
-            if schema == self.schema: 
+            if schema == self.params.schema: 
                 for table_name in inspector.get_table_names(schema = schema):
                     for column in inspector.get_columns(table_name, schema=schema):
                         print(
@@ -96,7 +102,7 @@ class DBResources:
 
         class HabrHtml(Base):
             __tablename__ = 'habr_html'
-            __table_args__ = {'schema': self.schema, 'comment': 'html код'}    
+            __table_args__ = {'schema': self.params.schema, 'comment': 'html код'}    
             link = Column('link', String(), primary_key = True, comment = 'Ссылка на post')
             html = Column('html', Text(),  nullable = False, comment = 'html')
             date_load = Column('date_load', TIMESTAMP(), nullable = False, comment = 'Дата загрузки')
@@ -104,7 +110,7 @@ class DBResources:
 
         class HabrPosts(Base):
             __tablename__ = 'habr_posts'
-            __table_args__ = {'schema': self.schema, 'comment': 'Данные с habr'}     
+            __table_args__ = {'schema': self.params.schema, 'comment': 'Данные с habr'}     
             id = Column('id', Integer(), primary_key = True, nullable = False, comment = 'Идентифкатор post')    
             title = Column('title', String(), comment = 'Тема поста')
             text = Column('text', Text(),  nullable = False, comment = 'Текст поста')
@@ -115,7 +121,7 @@ class DBResources:
             date_load = Column('date_load', TIMESTAMP(), nullable = False, comment = 'Дата размещения поста')
 
         for table in tables_list: 
-            if table not in self.inspector.get_table_names(schema = self.schema): 
+            if table not in self.inspector.get_table_names(schema = self.params.schema): 
     # Создаем таблицу для новинок
                 HabrHtml.metadata.bind = self.engine
                 HabrHtml.metadata.create_all(self.engine)
