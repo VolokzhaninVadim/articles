@@ -79,7 +79,7 @@ class HabrScraper:
         Выход:
             нет.
         """
-        with Controller.from_port(address = self.host, port = 9051) as controller:
+        with Controller.from_port(address = self.params.pg_host, port = 9051) as controller:
                 controller.authenticate(password = self.params.password_tor)
                 controller.signal(stem.Signal.NEWNYM)
                 
@@ -96,8 +96,8 @@ class HabrScraper:
 # Делаем запрос
         s = requests.session()
         s.proxies = {}
-        s.proxies['http'] = f'socks5h://{self.host}:9050'
-        s.proxies['https'] = f'socks5h://{self.host}:9050'
+        s.proxies['http'] = f'socks5h://{self.params.pg_host}:9050'
+        s.proxies['https'] = f'socks5h://{self.params.pg_host}:9050'
         while True:             
             try: 
                 r = s.get(url = url, headers={'User-Agent': UserAgent(cache = True).chrome}, timeout = (20, 50)) 
@@ -151,7 +151,7 @@ class HabrScraper:
             set_ = update_dict
         )
 
-        with self.engine.connect() as conn:
+        with self.db_resources.engine.connect() as conn:
             conn.execute(update_stmt)
         
         if re.findall('Страница не найдена', html.text):
