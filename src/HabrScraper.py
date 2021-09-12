@@ -58,54 +58,18 @@ from src.Params import Params
 ###############################################################################################################################################
 
 class HabrScraper:    
-    def __init__(self 
-                 ,pg_password
-                 ,pg_login
-                 ,host
-                 ,password_tor
-                 ,yandex_mail 
-                 ,habr_password
-                 ,url = {
-                     'main' : 'https://habr.com/ru/post/'
-                     ,'login' : 'https://account.habr.com/login'
-                 }
-                 ,schema = 'article'
-                 ,table_list = ['habr_posts', 'habr_html']
-                ):
+    def __init__(self):
         """
         Функция для инциализации объекта класса.
-        Вход:
-            pg_password(str) - пароль для postgre.
-            pg_login(str) - логин для postgre.
-            host(str) - ip адрес.
-            password_tor(str) - пароль для TOR.
-            yandex_mail(str) - ящик на yandex как логин в Habr.
-            habr_password(str) - пароль для Habr.
-            url(dict) - url.  
-            schema() - схема pg.
-            table_list(list) - список таблиц в pg.
+        Вход:   
+            нет.
         Выход: 
             нет.
         """
-        self.host = host
-        self.engine = create_engine(f'postgres://{pg_login}:{pg_password}@{self.host}:5432/{pg_login}')
-        self.inspector = inspect(self.engine)
-        self.metadata = MetaData(schema = self.inspector.get_schema_names(), bind = self.engine)  
-        self.table_list = table_list 
-        self.schema = schema
-        for table in self.table_list: 
-            Table(
-                table
-                ,self.metadata
-                ,schema = self.schema
-                ,autoload = True
-            )
-        self.password_tor = password_tor
-        self.yandex_mail = yandex_mail
-        self.habr_password = habr_password
-        self.url = url
-        self.dic_month = {'января' : '01', 'февраля' : '02', 'марта' : '03', 'апреля' : '04', 'мая' : '05', 'июня' : '06', 'июля' : '07','августа' : '08',
-                          'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'}                     
+        self.params = Params()
+        self.db_resources = DBResources() 
+        self.inspector = inspect(self.db_resources.engine)
+        self.metadata = MetaData(schema = self.inspector.get_schema_names(), bind = self.db_resources.engine)
 
     def change_ip(self): 
         """
@@ -116,7 +80,7 @@ class HabrScraper:
             нет.
         """
         with Controller.from_port(address = self.host, port = 9051) as controller:
-                controller.authenticate(password = self.password_tor)
+                controller.authenticate(password = self.params.password_tor)
                 controller.signal(stem.Signal.NEWNYM)
                 
     def data_page(self, url): 
@@ -153,7 +117,7 @@ class HabrScraper:
             result(bool) - булево значение для ненайденных старниц.
         """
         while True:
-            url = self.url['main'] + str(pid)
+            url = self.params.url['main'] + str(pid)
             try:                 
 # Получаем html
                 html, r = self.data_page(url) 
@@ -226,15 +190,18 @@ class HabrScraper:
         Выход:
             date(str) - даат в ФОРМАТЕ '%Y-%m-%d %H:%M'
         """
-        # Если получаем дату в формате 'сегодня'
+# Словарь месяцев        
+        dic_month = {'января' : '01', 'февраля' : '02', 'марта' : '03', 'апреля' : '04', 'мая' : '05', 'июня' : '06', 'июля' : '07','августа' : '08',
+                          'сентября' : '09', 'октября' : '10', 'ноября' : '11', 'декабря' : '12'} 
+# Если получаем дату в формате 'сегодня'
         if len(re.findall('сегодня', raw_date)) > 0:
             time = re.search(r'\d{2}:\d{2}', raw_date).group(0).strip()
             date = (datetime.datetime.now()).strftime("%Y-%m-%d") + ' ' + time
-        # Если получаем дату в формате 'вчера'
+# Если получаем дату в формате 'вчера'
         elif len(re.findall('вчера', raw_date)) > 0:
             time = re.search(r'\d{2}:\d{2}', raw_date).group(0).strip()
             date = (datetime.datetime.now() - datetime.timedelta(days = 1)).strftime("%Y-%m-%d") + ' ' + time
-        # Иначе
+# Иначе
         else:
             year = re.search(r'\d{4}', raw_date).group(0) if re.findall(r'\d{4}', raw_date) else str(datetime.datetime.now().year)
             day = re.search(r'^\d{1,2}', raw_date).group(0)
@@ -242,7 +209,7 @@ class HabrScraper:
             time = re.search(r'\d{2}:\d{2}', raw_date).group(0).strip()
             if len(day) == 1:
                 day = '0' + re.search(r'^\d{1,2}', raw_date).group(0)
-            date = year + '-' + self.dic_month[month] + '-' + day + ' ' + time
+            date = year + '-' + dic_month[month] + '-' + day + ' ' + time
         return date
     
     def clean_text(self, text):
@@ -286,7 +253,7 @@ class HabrScraper:
             rersult_df(DataFrame) - таблица с необработанными данными.
         """
 # Получаем таблицы для объединения 
-        inspector = inspect(self.metadata)
+        inspector = inspect(self.db_resources.metadata)
         habr_posts_table = inspector.tables['article.habr_posts']
         habr_html_table = inspector.tables['article.habr_html']
 
@@ -317,7 +284,7 @@ class HabrScraper:
             limit(500)
 
 # Выполняем запрос 
-            with self.engine.connect() as conn:   
+            with self.db_resources.engine.connect() as conn:   
                 id_list = conn.execute(stmt)
 
 # Получаем id статей 
@@ -385,7 +352,7 @@ class HabrScraper:
 
                 table = Table(
                     table_name
-                    ,self.metadata
+                    ,self.db_resources.metadata
                     ,schema = schema
                     ,autoload = True
                 )
@@ -405,7 +372,7 @@ class HabrScraper:
                     set_ = update_dict
                 )
 
-                with self.engine.connect() as conn:
+                with self.db_resources.engine.connect() as conn:
                     conn.execute(update_stmt)
                 
     def max_id(self):
@@ -422,7 +389,7 @@ class HabrScraper:
         """
         max_html = pd.read_sql(
             query1
-            ,con = self.engine
+            ,con = self.db_resources.engine
         )
         max_html = max_html.loc[0, 'max']
         
@@ -431,7 +398,7 @@ class HabrScraper:
         """
         max_habr_posts = pd.read_sql(
             query2
-            ,con = self.engine
+            ,con = self.db_resources.engine
         )        
         max_habr_posts = max_habr_posts.loc[0, 'max']
 
@@ -473,8 +440,8 @@ class HabrScraper:
 
 # Зарегестрируемся
         url = 'https://account.habr.com/login'
-        data = {'email_field': self.yandex_mail, 'password_field': self.habr_password}
-        requests.post(self.url['login'], data = data)
+        data = {'email_field': self.params.yandex_mail, 'password_field': self.params.habr_password}
+        requests.post(self.params.url['login'], data = data)
 
 # Получим ссылки
         id_list = []
@@ -510,5 +477,5 @@ class HabrScraper:
         table = self.metadata.tables[table_name]
         for post_id in id_list: 
             stmt = table.update().where(table.c.id == post_id and table.c.is_like == False).values(is_like = True)
-            with self.engine.connect() as conn:    
+            with self.db_resources.engine.connect() as conn:    
                 conn.execute(stmt)
