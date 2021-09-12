@@ -474,7 +474,7 @@ class HabrScraper:
         id_list = self.bookmarks()
 
 # Обвновляем запись
-        table = self.metadata.tables[table_name]
+        table = self.db_resources.metadata.tables[table_name]
         for post_id in id_list: 
             stmt = table.update().where(table.c.id == post_id and table.c.is_like == False).values(is_like = True)
             with self.db_resources.engine.connect() as conn:    
