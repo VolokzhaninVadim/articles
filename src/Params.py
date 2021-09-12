@@ -21,7 +21,9 @@ class Params:
         self.url = {
             'main' : 'https://habr.com/ru/post/'
             ,'login' : 'https://account.habr.com/login'
-        }        
+        } 
+        self.schema = 'article'
+        self.table_list = ['habr_posts', 'habr_html']
         
     def to_dict(self):
         return self.__dict__
