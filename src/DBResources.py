@@ -11,6 +11,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.sql.expression import func
 
+# Для работы с табличными данными
+import pandas as pd
+
 # Для работы с параметрами
 from src.Params import Params
 
@@ -21,7 +24,7 @@ from src.Params import Params
 class DBResources:    
     def __init__(self):
         """
-        Функция для инциализации объекта класса.
+        Инциализации объекта класса.
         Вход:
             нет.
         Выход: 
@@ -42,7 +45,7 @@ class DBResources:
             
     def pg_descriptions(self): 
         """
-        Функция для возвращения описания таблиц в pg. 
+        Описание таблиц в pg. 
         Вход: 
             нет.
         Выход: 
@@ -73,7 +76,7 @@ class DBResources:
             нет. 
         """   
         for schema in schemas: 
-    # Если нет схемы, то создаем ее 
+# Если нет схемы, то создаем ее 
             if schema not in self.metadata.schema: 
                 engine.execute(CreateSchema(schema))
 
@@ -85,7 +88,7 @@ class DBResources:
         Выход: 
             нет.
         """
-    # Очищаем все необходимые таблицы
+# Очищаем все необходимые таблицы
         for table in tables_list: 
             with self.engine.connect() as connection:
                 connection.execute(f'truncate {table}')
@@ -122,8 +125,23 @@ class DBResources:
 
         for table in tables_list: 
             if table not in self.inspector.get_table_names(schema = self.params.schema): 
-    # Создаем таблицу для новинок
+# Создаем таблицу для новинок
                 HabrHtml.metadata.bind = self.engine
                 HabrHtml.metadata.create_all(self.engine)
                 HabrPosts.metadata.bind = self.engine
                 HabrPosts.metadata.create_all(self.engine)   
+                
+    def lem_text(self): 
+        """
+        Получение нормализованного текста с pg. 
+        Вход: 
+            нет.
+        Выход:
+            (pd.DataFrame) - нормадизованный текст постов с сайта habr.com.
+        """
+#  Получаем необходимую таблицу 
+        habr_posts = self.metadata.tables['article.habr_posts']
+# Делаем запрос для получения нормализованного текста постов 
+        stmp = select([habr_posts.c.lem_text, habr_posts.c.id]).select_from(habr_posts).limit(100000)
+        query_result = self.engine.execute(stmp).fetchall()
+        return pd.DataFrame([dict(i) for i in query_result])
