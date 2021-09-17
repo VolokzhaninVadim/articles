@@ -24,6 +24,8 @@ class Params:
         } 
         self.schema = 'article'
         self.table_list = ['habr_posts', 'habr_html']
+        self.max_words = 2000
+        self.special_words = ['<PAD>', '<SOS>', '<EOS>', '<UNK>']
         
     def to_dict(self):
         return self.__dict__
