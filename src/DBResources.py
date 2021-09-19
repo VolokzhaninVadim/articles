@@ -24,7 +24,7 @@ from src.Params import Params
 class DBResources:    
     def __init__(self):
         """
-        Инциализации объекта класса.
+        Инициализации класса.
         Вход:
             нет.
         Выход: 
@@ -142,6 +142,6 @@ class DBResources:
 #  Получаем необходимую таблицу 
         habr_posts = self.metadata.tables['article.habr_posts']
 # Делаем запрос для получения нормализованного текста постов 
-        stmp = select([habr_posts.c.lem_text, habr_posts.c.id]).select_from(habr_posts).limit(100000)
+        stmp = select([habr_posts.c.lem_text, habr_posts.c.id]).select_from(habr_posts).limit(self.params.text_count)
         query_result = self.engine.execute(stmp).fetchall()
         return pd.DataFrame([dict(i) for i in query_result])
