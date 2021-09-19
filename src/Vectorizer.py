@@ -5,26 +5,22 @@
 # Для работы с параметрами
 from src.Params import Params
 
-# Для работы с БД
-from src.DBResources import DBResources
-
 # Для работы с Deep Learning
 import torch
 
 ###############################################################################################################################################
 ############################################## Создаем объект класса ##########################################################################
 class Vectorizer(object): 
-    def __init__(self): 
+    def __init__(self, text_list): 
         """
-        Функция для инициализации объекта класса
-        Вход:
-                нет.
+        Инициализации класса. 
+        Вход: 
+                text_list(list) - лист с номрализованным текстом. 
         Выход: 
-                нет.
+                нет. 
         """     
         self.params = Params()
-        self.db_resources = DBResources()
-        self.text = ' '.join(self.db_resources.lem_text()['lem_text'].values.tolist())
+        self.text = ' '.join(text_list)
         vocab = set(self.text.split())
 # Добавляем служебные символы
         vocab_list = self.params.special_words + list(vocab)
