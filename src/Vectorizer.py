@@ -10,6 +10,8 @@ import torch
 
 ###############################################################################################################################################
 ############################################## Создаем объект класса ##########################################################################
+###############################################################################################################################################
+
 class Vectorizer(object): 
     def __init__(self, text_list): 
         """
@@ -59,4 +61,4 @@ class Vectorizer(object):
             idxs = idxs + [self.word_to_ix['<PAD>']] * int(self.params.max_words - len(idxs))
         else: 
             idxs = idxs[:self.params.max_words]
-        return torch.tensor(idxs, dtype = torch.long)
+        return torch.tensor(idxs, dtype = torch.float)
