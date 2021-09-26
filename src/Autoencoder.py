@@ -21,22 +21,20 @@ class Autoencoder(nn.Module):
         super(Autoencoder, self).__init__()
         self.encoder = nn.Sequential(
             nn.Linear(1400, 512)
-            ,nn.ReLU(True)
+            ,nn.Tanh()
             ,nn.Linear(512, 128)
-            ,nn.ReLU(True)
         )
         self.decoder = nn.Sequential(
             nn.Linear(128, 512)
-            ,nn.ReLU(True)
+            ,nn.Tanh()
             ,nn.Linear(512, 1400)
         )
         
-    def forward(self, X, batch_size_current):
+    def forward(self, X):
         """
         Сжатие смысла текста.
         Вход: 
-                X(tensor): тензор вошедшей строки.   
-                batch_size_current(int): размерность пачки.                
+                X(tensor): тензор вошедшей строки.                
         Выход: 
                 (torch.Tensor): тензор. 
         """
