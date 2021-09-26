@@ -20,15 +20,21 @@ class Vectorizer(object):
                 text_list(list) - лист с номрализованным текстом. 
         Выход: 
                 нет. 
-        """     
+        """   
+# Параметры
         self.params = Params()
+# Общий коррпус текста
         self.text = ' '.join(text_list)
+# Общий словарь
         vocab = set(self.text.split())
 # Добавляем служебные символы
         vocab_list = self.params.special_words + list(vocab)
-        word_to_ix = {w: i for i, w in enumerate(vocab_list)}
-        self.n_words = len(word_to_ix)        
-        self.word_to_ix = word_to_ix 
+# Словарь слово:индекс
+        self.word_to_ix = {w: i for i, w in enumerate(vocab_list)}
+# Размер словаря
+        self.n_words = len(self.word_to_ix)  
+# Словарь индекс:слово
+        self.ix_to_word = {i: w for w, i in self.word_to_ix.items()} 
         
     def word_to_index(self, word):
         """
